@@ -8,16 +8,17 @@ const assert = require("assert");
 const Contract = artifacts.require("./Contract.sol");
 
 const srcDir = path.join(__dirname, "..");
+const subgraphName = process.env.SUBGRAPH_NAME || "test/subgraph_block_handlers";
 
-const httpPort = process.env.GRAPH_NODE_HTTP_PORT || 18000;
-const indexPort = process.env.GRAPH_NODE_INDEX_PORT || 18030;
-const ganachePort = process.env.GANACHE_TEST_PORT || 18545;
+const neonDevnet = "https://devnet.neonevm.org";
+const web3 = new Web3(neonDevnet);
+let block = 0;
 
-const fetchSubgraphs = createApolloFetch({
-  uri: `http://localhost:${indexPort}/graphql`,
+const fetchSubgraphIndexNode = createApolloFetch({
+  uri: `https://ch2-graph.neontest.xyz/index-node/graphql`,
 });
 const fetchSubgraph = createApolloFetch({
-  uri: `http://localhost:${httpPort}/subgraphs/name/test/block-handlers`,
+  uri: `https://ch2-graph.neontest.xyz/subgraphs/name/test/block-handlers`,
 });
 
 const exec = (cmd) => {
@@ -28,10 +29,7 @@ const exec = (cmd) => {
   }
 };
 
-const createBlocks = async (contract) => {
-  let ganacheUrl = `http://localhost:${ganachePort}`;
-
-  const web3 = new Web3(ganacheUrl);
+const generateBlocks = async (contract) => {
   let accounts = await web3.eth.getAccounts();
   // connect to the contract and call the function trigger()
   const contractInstance = new web3.eth.Contract(
@@ -39,7 +37,6 @@ const createBlocks = async (contract) => {
     contract.address
   );
   // loop and call emitTrigger 10 times
-  // This is to force ganache to mine 10 blocks
   for (let i = 0; i < 10; i++) {
     await contractInstance.methods
       .emitTrigger(i + 1)
@@ -55,13 +52,18 @@ const waitForSubgraphToBeSynced = async () =>
     // Function to check if the subgraph is synced
     const checkSubgraphSynced = async () => {
       try {
-        let result = await fetchSubgraphs({
-          query: `{ indexingStatuses { synced, health } }`,
+        let result = await fetchSubgraphIndexNode({
+          query: `{
+            indexingStatusForCurrentVersion(subgraphName: "${subgraphName}") {
+              synced
+              health
+            }
+          }`,
         });
 
-        if (result.data.indexingStatuses[0].synced) {
+        if (result.data.indexingStatusForCurrentVersion[0].synced) {
           resolve();
-        } else if (result.data.indexingStatuses[0].health != "healthy") {
+        } else if (result.data.indexingStatusForCurrentVersion[0].health != "healthy") {
           reject(new Error(`Subgraph failed`));
         } else {
           throw new Error("reject or retry");
@@ -86,14 +88,25 @@ contract("Contract", (accounts) => {
     const contract = await Contract.deployed();
 
     // Insert its address into subgraph manifest
-    await patching.replace(
-      path.join(srcDir, "subgraph.yaml"),
-      "0x0000000000000000000000000000000000000000",
-      contract.address
-    );
+    block = await web3.eth.getBlockNumber();
 
-    // We force ganache to mine atleast 10 blocks
-    // by calling a function in the contract 10 times
+    console.log("srcDir", srcDir);
+    console.log("contract address", contract.address);
+    for (let i = 0; i < 2; i++) {
+      await patching.replace(
+        path.join(srcDir, "subgraph.yaml"),
+        "0x0000000000000000000000000000000000000000",
+        contract.address
+      );
+
+      console.log("block", block);
+      await patching.replace(
+        path.join(srcDir, "subgraph.yaml"),
+        247101047,
+        block
+      );
+    }
+
     await createBlocks(contract);
 
     // Create and deploy the subgraph
@@ -115,16 +128,16 @@ contract("Contract", (accounts) => {
     expect(result.errors).to.be.undefined;
     expect(result.data).to.deep.equal({
       blocks: [
-        { id: "1", number: "1" },
-        { id: "2", number: "2" },
-        { id: "3", number: "3" },
-        { id: "4", number: "4" },
-        { id: "5", number: "5" },
-        { id: "6", number: "6" },
-        { id: "7", number: "7" },
-        { id: "8", number: "8" },
-        { id: "9", number: "9" },
-        { id: "10", number: "10" },
+        { id: block.toString(), number: block.toString() },
+        { id: (block + 1).toString(), number: (block + 1).toString() },
+        { id: (block + 2).toString(), number: (block + 2).toString() },
+        { id: (block + 3).toString(), number: (block + 3).toString() },
+        { id: (block + 4).toString(), number: (block + 4).toString() },
+        { id: (block + 5).toString(), number: (block + 5).toString() },
+        { id: (block + 6).toString(), number: (block + 6).toString() },
+        { id: (block + 7).toString(), number: (block + 7).toString() },
+        { id: (block + 8).toString(), number: (block + 8).toString() },
+        { id: (block + 9).toString(), number: (block + 9).toString() },
       ],
     });
   });
@@ -133,14 +146,14 @@ contract("Contract", (accounts) => {
     // Also test that multiple block constraints do not result in a graphql error.
     let result = await fetchSubgraph({
       query: `{
-        foos(orderBy: value,skip: 1) { id value }
+        foos(orderBy: value, skip: 1) { id value }
       }`,
     });
 
     expect(result.errors).to.be.undefined;
     const foos = [];
     for (let i = 0; i < 11; i++) {
-      foos.push({ id: i.toString(), value: i.toString() });
+      foos.push({ id: (block + i).toString(), number: (block + i).toString() });
     }
 
     expect(result.data).to.deep.equal({
@@ -148,11 +161,9 @@ contract("Contract", (accounts) => {
     });
   });
 
-  it("should call intialization handler first", async () => {
+  it("should call initialization handler first", async () => {
     let result = await fetchSubgraph({
-      query: `{
-        foo( id: "initialize" ) { id value }
-      }`,
+      query: ` `,
     });
 
     expect(result.errors).to.be.undefined;
@@ -175,9 +186,9 @@ contract("Contract", (accounts) => {
     expect(result.errors).to.be.undefined;
     expect(result.data).to.deep.equal({
       blockFromPollingHandlers: [
-        { id: "1", number: "1" },
-        { id: "4", number: "4" },
-        { id: "7", number: "7" },
+        { id: (block).toString(), number: (block).toString() },
+        { id: (block + 3).toString(), number: (block + 3).toString() },
+        { id: (block + 6).toString(), number: (block + 6).toString() },
       ],
     });
   });
@@ -192,9 +203,9 @@ contract("Contract", (accounts) => {
     expect(result.errors).to.be.undefined;
     expect(result.data).to.deep.equal({
       blockFromOtherPollingHandlers: [
-        { id: "2", number: "2" },
-        { id: "4", number: "4" },
-        { id: "6", number: "6" },
+        { id: (block + 1).toString(), number: (block + 1).toString() },
+        { id: (block + 3).toString(), number: (block + 3).toString() },
+        { id: (block + 5).toString(), number: (block + 5).toString() },
       ],
     });
   });
@@ -209,7 +220,7 @@ contract("Contract", (accounts) => {
     expect(result.errors).to.be.undefined;
     expect(result.data.initializes.length).to.equal(1);
     expect(result.data).to.deep.equal({
-      initializes: [{ id: "1", block: "1" }],
+      initializes: [{ id: (block).toString(), number: (block).toString() }],
     });
   });
 

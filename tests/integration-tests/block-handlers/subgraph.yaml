@@ -1,14 +1,14 @@
-specVersion: 0.0.8
+specVersion: 0.0.6
 schema:
   file: ./schema.graphql
 dataSources:
   - kind: ethereum/contract
     name: Contract
-    network: test
+    network: neonlabs
     source:
-      address: "0xCfEB869F69431e42cdB54A4F4f105C19C080A601"
+      address: "0x0000000000000000000000000000000000000000"
       abi: Contract
-      startBlock: 1
+      startBlock: 247101047
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -26,17 +26,14 @@ dataSources:
           filter:
             kind: polling
             every: 3
-        - handler: initialize
-          filter:
-            kind: once
       file: ./src/mapping.ts
   - kind: ethereum/contract
     name: BlockHandlerTest
-    network: test
+    network: neonlabs
     source:
-      address: "0xCfEB869F69431e42cdB54A4F4f105C19C080A603"
+      address: "0x0000000000000000000000000000000000000000"
       abi: Contract
-      startBlock: 1
+      startBlock: 247101047
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -52,7 +49,7 @@ dataSources:
 templates:
   - kind: ethereum/contract
     name: ContractTemplate
-    network: test
+    network: neonlabs
     source:
       abi: Contract
     mapping:
