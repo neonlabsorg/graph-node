@@ -1,7 +1,17 @@
 require("babel-register");
 require("babel-polyfill");
 
+const Web3 = require("web3");
+const HDWalletProvider = require("@truffle/hdwallet-provider");
+
+Web3.providers.HttpProvider.prototype.sendAsync = Web3.providers.HttpProvider.prototype.send
+const neonDevnet = "https://devnet.neonevm.org"
+const provider = new Web3.providers.HttpProvider(neonDevnet);
+const privateKeys = process.env.NEON_ACCOUNTS.split(",");
+
 module.exports = {
+  contracts_directory: "../../common",
+  migrations_directory: "../../common",
   contracts_build_directory: "./truffle_output",
   networks: {
     test: {
@@ -10,6 +20,15 @@ module.exports = {
       network_id: "*",
       gas: "100000000000",
       gasPrice: "1"
+    },
+    neonlabs: {
+      provider: () => {
+        return new HDWalletProvider(
+          privateKeys,
+          provider
+        );
+      },
+      network_id: "*"
     }
   },
   compilers: {
