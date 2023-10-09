@@ -11,7 +11,7 @@ dataSources:
       startBlock: 247101047
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.7
+      apiVersion: 0.0.6
       language: wasm/assemblyscript
       abis:
         - name: Contract
@@ -24,7 +24,7 @@ dataSources:
       blockHandlers:
         - handler: handleBlockPolling
           filter:
-            kind: polling
+            kind: call
             every: 3
       file: ./src/mapping.ts
   - kind: ethereum/contract
@@ -36,7 +36,7 @@ dataSources:
       startBlock: 247101047
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.7
+      apiVersion: 0.0.6
       language: wasm/assemblyscript
       abis:
         - name: Contract
@@ -54,7 +54,7 @@ templates:
       abi: Contract
     mapping:
       kind: ethereum/events
-      apiVersion: 0.0.7
+      apiVersion: 0.0.6
       language: wasm/assemblyscript
       entities:
         - Gravatar
@@ -64,6 +64,6 @@ templates:
       blockHandlers:
         - handler: handleBlockPollingFromTemplate
           filter:
-            kind: polling
+            kind: call
             every: 2
       file: ./src/mapping.ts

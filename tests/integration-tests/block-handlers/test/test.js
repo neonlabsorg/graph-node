@@ -3,15 +3,12 @@ const execSync = require("child_process").execSync;
 const { system, patching } = require("gluegun");
 const { createApolloFetch } = require("apollo-fetch");
 
-const Web3 = require("web3");
 const assert = require("assert");
 const Contract = artifacts.require("./Contract.sol");
 
 const srcDir = path.join(__dirname, "..");
 const subgraphName = process.env.SUBGRAPH_NAME || "test/subgraph_block_handlers";
 
-const neonDevnet = "https://devnet.neonevm.org";
-const web3 = new Web3(neonDevnet);
 let block = 0;
 
 const fetchSubgraphIndexNode = createApolloFetch({
@@ -107,7 +104,7 @@ contract("Contract", (accounts) => {
       );
     }
 
-    await createBlocks(contract);
+    await generateBlocks(contract);
 
     // Create and deploy the subgraph
     exec(`yarn codegen`);
