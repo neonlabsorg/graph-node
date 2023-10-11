@@ -36,6 +36,9 @@ module.exports = {
       network_id: "*"
     }
   },
+  mocha: {
+    timeout: 600000
+  },
   compilers: {
     solc: {
       version: "0.8.2"
