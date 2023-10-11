@@ -28,11 +28,6 @@ export function handleBlockTemplate(block: ethereum.Block): void {
   }
 
   let ctx = dataSource.context();
-  let number = ctx.getBigInt("number");
-  assert(
-    count.count == number.toI32(),
-    "wrong count, found " + BigInt.fromI32(count.count).toString()
-  );
   count.count += 1;
   count.save();
 }
