@@ -10,8 +10,6 @@ const provider = new Web3.providers.HttpProvider(neonDevnet);
 const privateKeys = process.env.NEON_ACCOUNTS.split(",");
 
 module.exports = {
-  contracts_directory: "../../common",
-  migrations_directory: "../../common",
   contracts_build_directory: "./truffle_output",
   networks: {
     test: {
@@ -30,6 +28,9 @@ module.exports = {
       },
       network_id: "*"
     }
+  },
+  mocha: {
+    timeout: 600000
   },
   compilers: {
     solc: {
