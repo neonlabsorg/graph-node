@@ -1,26 +1,38 @@
-const assert = require("assert")
 const path = require("path");
 const execSync = require("child_process").execSync;
-const { patching } = require("gluegun");
+const { system, patching } = require("gluegun");
 const { createApolloFetch } = require("apollo-fetch");
 
+const assert = require("assert");
 const Contract = artifacts.require("./Contract.sol");
 
 const srcDir = path.join(__dirname, "..");
+const subgraphName = process.env.SUBGRAPH_NAME || "subgraph_block_handlers";
+const indexNodeUrl = process.env.INDEX_NODE_URL || "https://ch2-graph.neontest.xyz/index-node/graphql";
+const subgraphUrl = process.env.SUBGRAPH_URL || `https://ch2-graph.neontest.xyz/subgraphs/name/${subgraphName}`;
 
-const httpPort = process.env.GRAPH_NODE_HTTP_PORT || 18000;
-const indexPort = process.env.GRAPH_NODE_INDEX_PORT || 18030;
+const zeroAddress = "0x0000000000000000000000000000000000000000";
+const templateBlock = 247101047;
 
-const fetchSubgraphs = createApolloFetch({
-  uri: `http://localhost:${indexPort}/graphql`,
+let block = 0;
+
+const fetchSubgraphIndexNode = createApolloFetch({
+  uri: indexNodeUrl,
 });
 const fetchSubgraph = createApolloFetch({
-  uri: `http://localhost:${httpPort}/subgraphs/name/test/poi-for-failed-subgraph`,
+  uri: subgraphUrl,
 });
 
-const fetchIndexingStatuses = subgraphName => fetchSubgraphs({
+const exec = (cmd) => {
+  try {
+    return execSync(cmd, { cwd: srcDir, stdio: "inherit" });
+  } catch (e) {
+    throw new Error(`Failed to run command \`${cmd}\``);
+  }
+};
+const fetchIndexingStatuses = name => fetchSubgraphIndexNode({
   query: `{
-    indexingStatusesForSubgraphName(subgraphName: "${subgraphName}") {
+    indexingStatusesForSubgraphName(subgraphName: "${name}") {
       subgraph
       health
       entityCount
@@ -32,7 +44,7 @@ const fetchIndexingStatuses = subgraphName => fetchSubgraphs({
   }`,
 })
 
-const fetchProofOfIndexing = ({ deploymentId, latestBlock }) => fetchSubgraphs({
+const fetchProofOfIndexing = ({ deploymentId, latestBlock }) => fetchSubgraphIndexNode({
   query: `{
     proofOfIndexing(
       subgraph: "${deploymentId}",
@@ -51,17 +63,9 @@ const fetchEntityCalls = () => fetchSubgraph({
   }`,
 })
 
-const exec = (cmd) => {
-  try {
-    return execSync(cmd, { cwd: srcDir, stdio: "inherit" });
-  } catch (e) {
-    throw new Error(`Failed to run command \`${cmd}\``);
-  }
-};
-
 const waitForSubgraphToFailWithError = async (blockNumber) =>
   new Promise((resolve, reject) => {
-    let deadline = Date.now() + 60 * 1000;
+    let deadline = Date.now() + 600 * 1000;
 
     const checkSubgraphFailedWithPoI = async () => {
       try {
@@ -70,7 +74,8 @@ const waitForSubgraphToFailWithError = async (blockNumber) =>
         // - last block number
         // - subgraph deployment id
         // So we can query the PoI later.
-        let statusesResult = await fetchIndexingStatuses("test/poi-for-failed-subgraph");
+        let statusesResult = await fetchIndexingStatuses(subgraphName);
+        console.log("statusesResult", JSON.stringify(statusesResult))
 
         if (statusesResult.errors != null) {
           reject("query contains errors: " + JSON.stringify(statusesResult.errors));
@@ -97,7 +102,7 @@ const waitForSubgraphToFailWithError = async (blockNumber) =>
         // Need to have failed since mappings have an `assert(false)`.
         if (status.health === "failed") {
           // Find latest block for the correct chain (we only use one)
-          let { latestBlock } = status.chains.find(({ network }) => network === "test")
+          let { latestBlock } = status.chains.find(({ network }) => network === "neonlabs")
 
           let poiResult = await fetchProofOfIndexing({
             deploymentId: status.subgraph,
@@ -105,13 +110,13 @@ const waitForSubgraphToFailWithError = async (blockNumber) =>
           })
 
           let hasPoI = poiResult.data && poiResult.data.proofOfIndexing != null
-          let hasOnlyOneEntityInTheDatabase = status.entityCount == 1
+          let hasOnlyOneEntityInTheDatabase = status.entityCount
 
           if (!hasPoI) {
-            return reject(new Error("Failed subgraph should have Proof of Indexing for block"));
-          } else if (!hasOnlyOneEntityInTheDatabase) {
+            throw new Error("Failed subgraph should have Proof of Indexing for block");
+          } else if (hasOnlyOneEntityInTheDatabase != 1) {
             // 1 instead of 3, which would happen if both 'Call' entities were saved in the database (look at src/mapping.ts)
-            return reject(new Error("Proof of Indexing returned, but it's not saved into the database"));
+            throw new Error("Proof of Indexing returned, but it's not saved into the database");
           } else {
             return resolve();
           }
@@ -122,7 +127,7 @@ const waitForSubgraphToFailWithError = async (blockNumber) =>
         if (Date.now() > deadline) {
           return reject(new Error(`Timed out waiting for the subgraph to fail`));
         } else {
-          setTimeout(checkSubgraphFailedWithPoI, 500);
+          setTimeout(checkSubgraphFailedWithPoI, 10000);
         }
       }
     };
@@ -138,10 +143,19 @@ contract("Contract", (accounts) => {
     await contract.emitTrigger(1);
 
     // Insert its address into subgraph manifest
+    txhash = Contract.transactionHash;
+    block = (await web3.eth.getTransaction(txhash)).blockNumber;
+
     await patching.replace(
       path.join(srcDir, "subgraph.yaml"),
-      "0x0000000000000000000000000000000000000000",
+      zeroAddress,
       contract.address
+    );
+
+    await patching.replace(
+      path.join(srcDir, "subgraph.yaml"),
+      templateBlock,
+      block
     );
 
     // Create and deploy the subgraph
