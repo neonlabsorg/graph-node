@@ -32,7 +32,7 @@ use tokio::process::{Child, Command};
 /// it.
 pub const INTEGRATION_TEST_DIRS: &[&str] = &[
     "api-version-v0-0-4",
-    "ganache-reverts",
+    "chain-reverts",
     "host-exports",
     "non-fatal-errors",
     "overloaded-contract-functions",
@@ -46,9 +46,6 @@ pub const INTEGRATION_TEST_DIRS: &[&str] = &[
 #[derive(Debug, Clone)]
 struct IntegrationTestSettings {
     n_parallel_tests: u64,
-    ganache_hard_wait: Duration,
-    ipfs_hard_wait: Duration,
-    postgres_hard_wait: Duration,
 }
 
 impl IntegrationTestSettings {
@@ -65,16 +62,7 @@ impl IntegrationTestSettings {
                 2 * std::thread::available_parallelism()
                     .map(NonZeroUsize::get)
                     .unwrap_or(2) as u64,
-            ),
-            ganache_hard_wait: Duration::from_secs(
-                parse_numeric_environment_variable("TESTS_GANACHE_HARD_WAIT_SECONDS").unwrap_or(0),
-            ),
-            ipfs_hard_wait: Duration::from_secs(
-                parse_numeric_environment_variable("TESTS_IPFS_HARD_WAIT_SECONDS").unwrap_or(0),
-            ),
-            postgres_hard_wait: Duration::from_secs(
-                parse_numeric_environment_variable("TESTS_POSTGRES_HARD_WAIT_SECONDS").unwrap_or(0),
-            ),
+            )
         }
     }
 }
@@ -83,22 +71,14 @@ impl IntegrationTestSettings {
 /// integration test.
 #[derive(Debug)]
 struct IntegrationTestRecipe {
-    postgres_uri: String,
     ipfs_uri: String,
-    ganache_port: u16,
-    ganache_uri: String,
-    graph_node_ports: GraphNodePorts,
-    graph_node_bin: Arc<PathBuf>,
+    graph_node_uri: String,
     test_directory: PathBuf,
 }
 
 impl IntegrationTestRecipe {
     fn test_name(&self) -> String {
         basename(&self.test_directory)
-    }
-
-    fn graph_node_admin_uri(&self) -> String {
-        format!("http://localhost:{}/", self.graph_node_ports.admin)
     }
 }
 
@@ -133,7 +113,6 @@ impl std::fmt::Display for Output {
 struct IntegrationTestSummary {
     test_recipe: IntegrationTestRecipe,
     test_command_result: IntegrationTestResult,
-    graph_node_output: Output,
 }
 
 impl IntegrationTestSummary {
@@ -159,9 +138,6 @@ impl IntegrationTestSummary {
         println!("---------------------------");
         println!("{}", self.test_command_result.output);
         println!("--------------------------");
-        println!("graph-node command output:");
-        println!("--------------------------");
-        println!("{}", self.graph_node_output);
     }
 }
 
@@ -185,47 +161,19 @@ async fn parallel_integration_tests() -> anyhow::Result<()> {
     }
 
     tokio::join!(
-        // Pull the required Docker images.
-        pull_service_images(),
         // Run `yarn` command to build workspace.
         run_yarn_command(&yarn_workspace_dir),
     );
 
-    println!("Starting PostgreSQL and IPFS containers...");
-
-    // Not only do we start the containers, but we also need to wait for
-    // them to be up and running and ready to accept connections.
-    let (postgres, ipfs) = tokio::try_join!(
-        ServiceDependency::start(
-            ServiceContainerKind::Postgres,
-            "database system is ready to accept connections",
-            test_settings.postgres_hard_wait
-        ),
-        ServiceDependency::start(
-            ServiceContainerKind::Ipfs,
-            "Daemon is ready",
-            test_settings.ipfs_hard_wait
-        ),
-    )?;
-
     println!(
-        "Containers are ready! Running tests with N_CONCURRENT_TESTS={} ...",
+        "Running tests with N_CONCURRENT_TESTS={} ...",
         test_settings.n_parallel_tests
-    );
-
-    let graph_node = Arc::new(
-        fs::canonicalize("../target/debug/graph-node")
-            .context("failed to infer `graph-node` program location. (Was it built already?)")?,
     );
 
     let stream = tokio_stream::iter(test_dirs)
         .map(|dir| {
             run_integration_test(
-                dir,
-                postgres.clone(),
-                ipfs.clone(),
-                graph_node.clone(),
-                test_settings.ganache_hard_wait,
+                dir
             )
         })
         .buffered(test_settings.n_parallel_tests as usize);
@@ -234,21 +182,6 @@ async fn parallel_integration_tests() -> anyhow::Result<()> {
     let failed = test_results.iter().any(|r| !r.test_command_result.success);
 
     // All tests have finished; we don't need the containers anymore.
-    tokio::try_join!(
-        async {
-            postgres
-                .container
-                .stop()
-                .await
-                .context("failed to stop container with Postgres")
-        },
-        async {
-            ipfs.container
-                .stop()
-                .await
-                .context("failed to stop container with IPFS")
-        },
-    )?;
 
     // print failures
     for failed_test in test_results
@@ -271,115 +204,23 @@ async fn parallel_integration_tests() -> anyhow::Result<()> {
     }
 }
 
-#[derive(Clone)]
-struct ServiceDependency {
-    container: Arc<ServiceContainer>,
-    ports: Arc<MappedPorts>,
-}
-
-impl ServiceDependency {
-    async fn start(
-        service: ServiceContainerKind,
-        wait_msg: &str,
-        hard_wait: Duration,
-    ) -> anyhow::Result<Self> {
-        let service = ServiceContainer::start(service).await.context(format!(
-            "Failed to start container service `{}`",
-            service.name()
-        ))?;
-
-        service
-            .wait_for_message(wait_msg.as_bytes(), hard_wait)
-            .await
-            .context(format!(
-                "failed to wait for {} container to be ready to accept connections",
-                service.container_name()
-            ))?;
-
-        let ports = service.exposed_ports().await.context(format!(
-            "failed to obtain exposed ports for the `{}` container",
-            service.container_name()
-        ))?;
-
-        Ok(Self {
-            container: Arc::new(service),
-            ports: Arc::new(ports),
-        })
-    }
-}
-
 /// Prepare and run the integration test
 async fn run_integration_test(
     test_directory: PathBuf,
-    postgres: ServiceDependency,
-    ipfs: ServiceDependency,
-    graph_node_bin: Arc<PathBuf>,
-    ganache_hard_wait: Duration,
 ) -> anyhow::Result<IntegrationTestSummary> {
-    let db_name =
-        format!("{}-{}", basename(&test_directory), uuid::Uuid::new_v4()).replace('-', "_");
-
-    let (ganache, _) = tokio::try_join!(
-        // Start a dedicated Ganache container for this test.
-        async {
-            ServiceDependency::start(
-                ServiceContainerKind::Ganache,
-                "Listening on ",
-                ganache_hard_wait,
-            )
-            .await
-            .context("failed to start Ganache container")
-        },
-        // PostgreSQL is up and running, but we still need to create the database.
-        async {
-            ServiceContainer::create_postgres_database(&postgres.container, &db_name)
-                .await
-                .context("failed to create the test database.")
-        }
-    )?;
-
-    // Build URIs.
-    let postgres_uri = { make_postgres_uri(&db_name, &postgres.ports) };
-    let ipfs_uri = make_ipfs_uri(&ipfs.ports);
-    let (ganache_port, ganache_uri) = make_ganache_uri(&ganache.ports);
 
     let test_recipe = IntegrationTestRecipe {
-        postgres_uri,
         ipfs_uri,
-        ganache_uri,
-        ganache_port,
-        graph_node_bin,
-        graph_node_ports: GraphNodePorts::random_free(),
+        graph_node_uri,
         test_directory,
     };
-
-    // Spawn graph-node.
-    let mut graph_node_child_command = run_graph_node(&test_recipe)?;
 
     println!("Test started: {}", basename(&test_recipe.test_directory));
     let result = run_test_command(&test_recipe).await?;
 
-    let (graph_node_output, _) = tokio::try_join!(
-        async {
-            // Stop graph-node and read its output.
-            stop_graph_node(&mut graph_node_child_command)
-                .await
-                .context("failed to stop graph-node")
-        },
-        async {
-            // Stop Ganache.
-            ganache
-                .container
-                .stop()
-                .await
-                .context("failed to stop container service for Ganache")
-        }
-    )?;
-
     Ok(IntegrationTestSummary {
         test_recipe,
         test_command_result: result,
-        graph_node_output,
     })
 }
 
@@ -388,18 +229,10 @@ async fn run_test_command(
     test_recipe: &IntegrationTestRecipe,
 ) -> anyhow::Result<IntegrationTestResult> {
     let output = Command::new("yarn")
-        .arg("test")
-        .env("GANACHE_TEST_PORT", test_recipe.ganache_port.to_string())
-        .env("GRAPH_NODE_ADMIN_URI", test_recipe.graph_node_admin_uri())
-        .env(
-            "GRAPH_NODE_HTTP_PORT",
-            test_recipe.graph_node_ports.http.to_string(),
-        )
-        .env(
-            "GRAPH_NODE_INDEX_PORT",
-            test_recipe.graph_node_ports.index.to_string(),
-        )
+        .arg("neon")
+        .env("GRAPH_NODE_ADMIN_URI", &test_recipe.graph_node_uri)
         .env("IPFS_URI", &test_recipe.ipfs_uri)
+        .env("SUBGRAPH_NAME", &test_recipe.test_directory)
         .current_dir(&test_recipe.test_directory)
         .output()
         .await
@@ -417,63 +250,6 @@ async fn run_test_command(
             stderr: Some(pretty_output(&output.stderr, &stderr_tag)),
         },
     })
-}
-
-fn run_graph_node(recipe: &IntegrationTestRecipe) -> anyhow::Result<Child> {
-    use std::process::Stdio;
-
-    let mut command = Command::new(recipe.graph_node_bin.as_os_str());
-    command
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .arg("--postgres-url")
-        .arg(&recipe.postgres_uri)
-        .arg("--ethereum-rpc")
-        .arg(&recipe.ganache_uri)
-        .arg("--ipfs")
-        .arg(&recipe.ipfs_uri)
-        .arg("--http-port")
-        .arg(recipe.graph_node_ports.http.to_string())
-        .arg("--index-node-port")
-        .arg(recipe.graph_node_ports.index.to_string())
-        .arg("--ws-port")
-        .arg(recipe.graph_node_ports.ws.to_string())
-        .arg("--admin-port")
-        .arg(recipe.graph_node_ports.admin.to_string())
-        .arg("--metrics-port")
-        .arg(recipe.graph_node_ports.metrics.to_string());
-
-    command
-        .spawn()
-        .context("failed to start graph-node command.")
-}
-
-async fn stop_graph_node(child: &mut Child) -> anyhow::Result<Output> {
-    child.kill().await.context("Failed to kill graph-node")?;
-
-    // capture stdio
-    let stdout = match child.stdout.take() {
-        Some(mut data) => Some(process_stdio(&mut data, "[graph-node:stdout] ").await?),
-        None => None,
-    };
-    let stderr = match child.stderr.take() {
-        Some(mut data) => Some(process_stdio(&mut data, "[graph-node:stderr] ").await?),
-        None => None,
-    };
-
-    Ok(Output { stdout, stderr })
-}
-
-async fn process_stdio<T: AsyncReadExt + Unpin>(
-    stdio: &mut T,
-    prefix: &str,
-) -> anyhow::Result<String> {
-    let mut buffer: Vec<u8> = Vec::new();
-    stdio
-        .read_to_end(&mut buffer)
-        .await
-        .context("failed to read stdio")?;
-    Ok(pretty_output(&buffer, prefix))
 }
 
 /// run yarn to build everything
