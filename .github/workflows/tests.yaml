@@ -7,7 +7,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
-  THEGRAPH_STORE_POSTGRES_DIESEL_URL: "postgresql://postgres:postgres@localhost:5432/graph_node_test"
+  RUNNER: neon-hosted
 
 jobs:
   integration-tests:
@@ -34,12 +34,6 @@ jobs:
       - name: Install lld and jq
         run: sudo apt-get install -y lld jq protobuf-compiler
 
-      - name: Build graph-node
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --bin graph-node
-
       # Integration tests are a bit flaky, running them twice increases the
       # chances of one run succeeding.
       - name: Run integration tests (round 1)
@@ -49,6 +43,9 @@ jobs:
           N_CONCURRENT_TESTS: "4"
           TESTS_GANACHE_HARD_WAIT_SECONDS: "30"
           ACCOUNTS: ${{ env.ACCOUNTS }}
+          SUBGRAPH_NAME: ${{ github.run_id }}
+          IPFS_URI: "https://ch-ipfs.neontest.xyz"
+          GRAPH_NODE_ADMIN_URI: "https://ch2-graph.neontest.xyz/deploy/"
           # Reduce how long a batch will stick around to avoid timeouts
           GRAPH_STORE_WRITE_BATCH_DURATION: 30
         with:

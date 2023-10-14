@@ -11,18 +11,12 @@
 
 use anyhow::Context;
 use futures::{StreamExt, TryStreamExt};
-use graph_tests::docker_utils::{pull_service_images, ServiceContainer, ServiceContainerKind};
 use graph_tests::helpers::{
-    basename, make_ganache_uri, make_ipfs_uri, make_postgres_uri, pretty_output, GraphNodePorts,
-    MappedPorts,
+    basename, pretty_output
 };
-use std::fs;
 use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::io::AsyncReadExt;
-use tokio::process::{Child, Command};
+use tokio::process::{Command};
 
 /// All directories containing integration tests to run.
 ///
