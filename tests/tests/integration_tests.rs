@@ -37,9 +37,9 @@ pub const INTEGRATION_TEST_DIRS: &[&str] = &[
     "block-handlers",
 ];
 
-const IPFS_URI: String = "https://ch-ipfs.neontest.xyz";
-const GRAPH_NODE_ADMIN_URI: String = "https://ch2-graph.neontest.xyz/deploy/";
-const SUBGRAPH_NAME: String = "test-subgraph";
+const IPFS_URI: &str = "https://ch-ipfs.neontest.xyz";
+const GRAPH_NODE_ADMIN_URI: &str = "https://ch2-graph.neontest.xyz/deploy/";
+const SUBGRAPH_NAME: &str = "test-subgraph";
 
 #[derive(Debug, Clone)]
 struct IntegrationTestSettings {
@@ -171,7 +171,7 @@ async fn parallel_integration_tests() -> anyhow::Result<()> {
 
     let stream = tokio_stream::iter(test_dirs)
         .map(|dir| {
-            let name = [basename(dir), SUBGRAPH_NAME.to_string()].join("-");
+            let name = [basename(&dir), SUBGRAPH_NAME.to_string()].join("-");
             run_integration_test(
                 dir,
                 IPFS_URI.to_string(),
@@ -218,7 +218,7 @@ async fn run_integration_test(
     let test_recipe = IntegrationTestRecipe {
         ipfs_uri,
         graph_node_uri,
-        subgraph_name
+        subgraph_name,
         test_directory,
     };
 
