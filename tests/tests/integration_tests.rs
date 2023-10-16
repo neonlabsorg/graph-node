@@ -264,6 +264,8 @@ async fn run_yarn_command(base_directory: &impl AsRef<Path>) {
     let timer = std::time::Instant::now();
     println!("Running `yarn` command in integration tests root directory.");
     let output = Command::new("yarn")
+        .arg("install")
+        .arg("--frozen-lockfile")
         .current_dir(base_directory)
         .output()
         .await
