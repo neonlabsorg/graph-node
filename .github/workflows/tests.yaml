@@ -3,11 +3,15 @@ name: Run the graph tests
 on:
   push:
   workflow_dispatch:
+    inputs:
+      accounts:
+  repository_dispatch:
+    inputs:
+      accounts:
 
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
-  RUNNER: neon-hosted
 
 jobs:
   integration-tests:
@@ -34,31 +38,16 @@ jobs:
       - name: Install lld and jq
         run: sudo apt-get install -y lld jq protobuf-compiler
 
-      # Integration tests are a bit flaky, running them twice increases the
-      # chances of one run succeeding.
-      - name: Run integration tests (round 1)
-        id: integration-tests-1
+      - name: Run integration tests
+        id: integration-tests
         uses: actions-rs/cargo@v1
         env:
           N_CONCURRENT_TESTS: "4"
           TESTS_GANACHE_HARD_WAIT_SECONDS: "30"
-          ACCOUNTS: ${{ env.ACCOUNTS }}
+          ACCOUNTS: ${{ github.event.inputs.accounts }}
           SUBGRAPH_NAME: ${{ github.run_id }}
           IPFS_URI: "https://ch-ipfs.neontest.xyz"
           GRAPH_NODE_ADMIN_URI: "https://ch2-graph.neontest.xyz/deploy/"
-          # Reduce how long a batch will stick around to avoid timeouts
-          GRAPH_STORE_WRITE_BATCH_DURATION: 30
-        with:
-          command: test
-          args: --verbose --package graph-tests parallel_integration_tests -- --nocapture
-        continue-on-error: true
-      - name: Run integration tests (round 2)
-        id: integration-tests-2
-        uses: actions-rs/cargo@v1
-        if: ${{ steps.integration-tests-1.outcome == 'failure' }}
-        env:
-          N_CONCURRENT_TESTS: "4"
-          TESTS_GANACHE_HARD_WAIT_SECONDS: "30"
           # Reduce how long a batch will stick around to avoid timeouts
           GRAPH_STORE_WRITE_BATCH_DURATION: 30
         with:
