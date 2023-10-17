@@ -1,9 +1,9 @@
 name: Run the graph tests
 
 on:
-  push:
   workflow_dispatch:
     inputs:
+      distinct_id:
       accounts:
   repository_dispatch:
     inputs:
@@ -21,6 +21,10 @@ jobs:
     env:
       RUSTFLAGS: "-C link-arg=-fuse-ld=lld -D warnings"
     steps:
+      - name: echo distinct ID
+        run: |
+          echo distinct ID: ${{ github.event.inputs.distinct_id }}
+          echo run ID: ${{ github.run_id }}
       - name: Tune GitHub hosted runner to reduce flakiness
         # https://github.com/smorimoto/tune-github-hosted-runner-network/blob/main/action.yml
         run: sudo ethtool -K eth0 tx off rx off
@@ -39,12 +43,11 @@ jobs:
         run: sudo apt-get install -y lld jq protobuf-compiler
 
       - name: Run integration tests
-        id: integration-tests
         uses: actions-rs/cargo@v1
         env:
           N_CONCURRENT_TESTS: "4"
           TESTS_GANACHE_HARD_WAIT_SECONDS: "30"
-          ACCOUNTS: ${{ github.event.inputs.accounts }}
+          NEON_ACCOUNTS: ${{ env.ACCOUNTS }}
           SUBGRAPH_NAME: ${{ github.run_id }}
           IPFS_URI: "https://ch-ipfs.neontest.xyz"
           GRAPH_NODE_ADMIN_URI: "https://ch2-graph.neontest.xyz/deploy/"
