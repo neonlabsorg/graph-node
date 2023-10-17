@@ -19,4 +19,4 @@ yarn truffle compile
 
 # Move abi to a directory expected by graph-node
 mkdir -p abis bin
-jq -r '.abi' truffle_output/Contract.json > abis/Contract.abi
+# jq -r '.abi' truffle_output/Contract.json > abis/Contract.abi
