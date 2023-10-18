@@ -235,6 +235,13 @@ async fn run_integration_test(
 async fn run_test_command(
     test_recipe: &IntegrationTestRecipe,
 ) -> anyhow::Result<IntegrationTestResult> {
+    Command::new("yarn")
+    .arg("build-contracts")
+    .current_dir(&test_recipe.test_directory)
+    .output()
+    .await
+    .context("failed to run build-contracts command")?;
+
     Command::new("jq")
         .arg("-r")
         .arg("'.abi'")

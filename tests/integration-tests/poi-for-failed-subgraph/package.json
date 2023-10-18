@@ -5,7 +5,7 @@
     "build-contracts": "../../common/build-contracts.sh",
     "codegen": "graph codegen --skip-migrations",
     "test": "yarn build-contracts && truffle test --compile-none --network test",
-    "neon": "yarn build-contracts && truffle test --compile-none --network neonlabs",
+    "neon": "yarn truffle test --compile-none --network neonlabs",
     "create:test": "graph create $SUBGRAPH_NAME --node $GRAPH_NODE_ADMIN_URI",
     "deploy:test": "graph deploy $SUBGRAPH_NAME --version-label v0.0.1 --ipfs $IPFS_URI --node $GRAPH_NODE_ADMIN_URI"
   },
