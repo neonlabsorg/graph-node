@@ -21,8 +21,6 @@
     "babel-polyfill": "^6.26.0",
     "babel-register": "^6.26.0",
     "gluegun": "^4.6.1",
-    "jq": "^1.7.2",
-    "truffle": "^5.2",
-    "winston": "^3.10.0"
+    "truffle": "^5.2"
   }
 }
