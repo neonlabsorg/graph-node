@@ -171,7 +171,11 @@ async fn parallel_integration_tests() -> anyhow::Result<()> {
 
     let stream = tokio_stream::iter(test_dirs)
         .map(|dir| {
-            let name = [basename(&dir), SUBGRAPH_NAME.to_string()].join("-");
+            let unique_part = match env::var_os("SUBGRAPH_NAME") {
+                Some(v) => v.into_string().unwrap(),
+                None => panic!("$SUBGRAPH_NAME is not set")
+            };
+            let name = [basename(&dir), unique_part.to_string()].join("-");
             run_integration_test(
                 dir,
                 IPFS_URI.to_string(),
