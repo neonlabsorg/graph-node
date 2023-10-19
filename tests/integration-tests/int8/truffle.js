@@ -29,7 +29,8 @@ module.exports = {
         );
       },
       network_id: "*"
-    }
+    },
+    networkCheckTimeout: 60000
   },
   compilers: {
     solc: {

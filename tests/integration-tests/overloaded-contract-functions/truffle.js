@@ -27,7 +27,8 @@ module.exports = {
         );
       },
       network_id: "*"
-    }
+    },
+    networkCheckTimeout: 60000
   },
   mocha: {
     timeout: 600000
