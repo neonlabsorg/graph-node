@@ -235,22 +235,6 @@ async fn run_integration_test(
 async fn run_test_command(
     test_recipe: &IntegrationTestRecipe,
 ) -> anyhow::Result<IntegrationTestResult> {
-    Command::new("yarn")
-    .arg("build-contracts")
-    .current_dir(&test_recipe.test_directory)
-    .output()
-    .await
-    .context("failed to run build-contracts command")?;
-
-    Command::new("jq")
-        .arg("-r")
-        .arg("'.abi'")
-        .arg("truffle_output/Contract.json > abis/Contract.abi")
-        .current_dir(&test_recipe.test_directory)
-        .output()
-        .await
-        .context("failed to run jq command")?;
-
     let output = Command::new("yarn")
         .arg("neon")
         .env("GRAPH_NODE_ADMIN_URI", &test_recipe.graph_node_uri)
