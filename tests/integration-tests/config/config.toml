@@ -1,0 +1,15 @@
+[chains]
+ingestor = "block_ingestor_node"
+[chains.mainnet]
+shard = "primary"
+provider = [
+  { label = "devnet", url = "DEVNET_PROVIDER", features = [] },
+]
+[store]
+[store.primary]
+connection="CONNECTION_STRING"
+weight = 1
+pool_size = 100
+[deployment]
+[[deployment.rule]]
+indexers = [ "index_node_other_0" ]
