@@ -17,6 +17,7 @@ use graph_tests::helpers::{
 use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 use tokio::process::{Command};
+use std::env;
 
 /// All directories containing integration tests to run.
 ///
