@@ -65,4 +65,17 @@ jobs:
           cat ./tests/integration-tests/config/config.toml
           docker run -t -d --rm -v ./tests/integration-tests/config/config.toml:/config.toml --name=graph-node-${{ github.run_id }} graphprotocol/graph-node:v0.32.0 sleep infinity
           ./tests/integration-tests/config/rm_subgraphs.sh ${{ github.run_id }}
-          docker stop graph-node-${{ github.run_id }}; docker rm graph-node-${{ github.run_id }}
+          docker stop graph-node-${{ github.run_id }}; docker rm graph-node-${{ github.run_id }}          
+          
+      - name: "Notify on failure"
+        if: failure()
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_CHANNEL: team-dev-qa
+          SLACK_COLOR: '#ff0000'
+          SLACK_ICON: ':exclamation:'
+          SLACK_FOOTER: 'Neonlabs'
+          SLACK_MESSAGE: '<https://github.com/neonlabsorg/graph-node/actions/runs/${{ github.run_id }}|View build details>'
+          SLACK_TITLE: The Graph Integration Tests Failed
+          SLACK_USERNAME: NeonBot
+          SLACK_WEBHOOK: ${{ secrets.SLACK_QA_CHANNEL_URL }}
