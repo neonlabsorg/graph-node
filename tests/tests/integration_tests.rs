@@ -40,7 +40,6 @@ pub const INTEGRATION_TEST_DIRS: &[&str] = &[
 
 const IPFS_URI: &str = "https://ch-ipfs.neontest.xyz";
 const GRAPH_NODE_ADMIN_URI: &str = "https://ch2-graph.neontest.xyz/deploy/";
-const SUBGRAPH_NAME: &str = "test-subgraph";
 
 #[derive(Debug, Clone)]
 struct IntegrationTestSettings {
