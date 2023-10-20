@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 TAG=$1
 
 declare -a arr=("api-version-v0-0-4" "block-handlers" "chain-reverts" "host-exports" "int8" "non-fatal-errors" "overloaded-contract-functions" "poi-for-failed-subgraph" "remove-then-update" "value-roundtrip")
@@ -9,7 +9,8 @@ do
     var=$(docker exec graph-node-$TAG bash -c "graphman --config /config.toml info $entry-$TAG")
     if [[ $var != "No matches" ]]; then
         echo "Removing subgraph: $entry-$TAG"
-        docker exec graph-node-$TAG bash -c "yes | graphman --config config.toml drop $entry-$TAG"
+        echo "Graph info: \n $var"
+        docker exec graph-node-$TAG bash -c "yes | graphman --config /config.toml drop $entry-$TAG"
     else
         echo "Can not find $entry-$TAG subgraph."
     fi
