@@ -9,9 +9,9 @@ dataSources:
     name: Contract
     network: neonlabs
     source:
-      address: "0xcFaE3dA99a0255B8dC89205e0397a307C7be5C2B"
+      address: "0x0000000000000000000000000000000000000000"
       abi: Contract
-      startBlock: 250398971
+      startBlock: 247101047
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.4

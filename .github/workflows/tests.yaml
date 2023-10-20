@@ -1,10 +1,8 @@
 name: Run the graph tests
 
 on:
-  workflow_dispatch:
-    inputs:
-      distinct_id:
-      accounts:
+  repository_dispatch:
+    types: [integration-tests]
 
 env:
   CARGO_TERM_COLOR: always
@@ -18,9 +16,8 @@ jobs:
     env:
       RUSTFLAGS: "-C link-arg=-fuse-ld=lld -D warnings"
     steps:
-      - name: echo distinct ID
+      - name: echo run ID
         run: |
-          echo distinct ID: ${{ github.event.inputs.distinct_id }}
           echo run ID: ${{ github.run_id }}
       - name: Tune GitHub hosted runner to reduce flakiness
         # https://github.com/smorimoto/tune-github-hosted-runner-network/blob/main/action.yml
@@ -43,7 +40,7 @@ jobs:
         uses: actions-rs/cargo@v1
         env:
           N_CONCURRENT_TESTS: "1"
-          NEON_ACCOUNTS: ${{ github.event.inputs.accounts }}
+          NEON_ACCOUNTS: ${{ github.event.client_payload.accounts }}
           SUBGRAPH_NAME: ${{ github.run_id }}
           IPFS_URI: "https://ch-ipfs.neontest.xyz"
           GRAPH_NODE_ADMIN_URI: "https://ch2-graph.neontest.xyz/deploy/"
@@ -57,5 +54,6 @@ jobs:
           docker pull graphprotocol/graph-node:v0.32.0
           sed -i -e "s|DEVNET_PROVIDER|${{ secrets.DEVNET_PROVIDER }}|g" ./tests/integration-tests/config/config.toml
           sed -i -e "s|CONNECTION_STRING|${{ secrets.CONNECTION_STRING }}|g" ./tests/integration-tests/config/config.toml
+          cat ./tests/integration-tests/config/config.toml
           docker run -t -d --rm -v ./tests/integration-tests/config/config.toml:/config.toml --name=graph-node-${{ github.run_id }} graphprotocol/graph-node:v0.32.0 sleep infinity
           ./tests/integration-tests/config/rm_subgraphs.sh ${{ github.run_id }}
