@@ -15,7 +15,7 @@ env:
 jobs:
   integration-tests:
     name: Run integration tests
-    runs-on: ubuntu-latest
+    runs-on: devnet-tracer
     timeout-minutes: 90
     env:
       RUSTFLAGS: "-C link-arg=-fuse-ld=lld -D warnings"
