@@ -51,7 +51,7 @@ jobs:
           GRAPH_NODE_ADMIN_URI: "https://ch2-graph.neontest.xyz/deploy/"
         with:
           command: test
-          args: --verbose --package graph-tests parallel_integration_tests -- --nocapture
+          args: --package graph-tests parallel_integration_tests -- --nocapture
       
       - name: Clear The Graph 
         if: always()
@@ -60,9 +60,11 @@ jobs:
           CONNECTION_STRING: ${{ secrets.CONNECTION_STRING }}
         run: |
           docker pull graphprotocol/graph-node:v0.32.0
+          echo "Replace connection string and devnet provider on config.toml"
           sed -i -e "s|DEVNET_PROVIDER|${{env.DEVNET_PROVIDER}}|g" ./tests/integration-tests/config/config.toml
           sed -i -e "s|CONNECTION_STRING|${{env.CONNECTION_STRING}}|g" ./tests/integration-tests/config/config.toml
           cat ./tests/integration-tests/config/config.toml
+          echo "Run the Graph container"
           docker run -t -d --rm -v ./tests/integration-tests/config/config.toml:/config.toml --name=graph-node-${{ github.run_id }} graphprotocol/graph-node:v0.32.0 sleep infinity
           ./tests/integration-tests/config/rm_subgraphs.sh ${{ github.run_id }}
           docker stop graph-node-${{ github.run_id }}; docker rm graph-node-${{ github.run_id }}          
