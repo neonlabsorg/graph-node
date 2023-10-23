@@ -24,9 +24,6 @@ jobs:
         run: |
           echo distinct ID: ${{ github.event.inputs.distinct_id }}
           echo run ID: ${{ github.run_id }}
-      - name: Tune GitHub hosted runner to reduce flakiness
-        # https://github.com/smorimoto/tune-github-hosted-runner-network/blob/main/action.yml
-        run: sudo ethtool -K eth0 tx off rx off
       - name: Checkout sources
         uses: actions/checkout@v2
       - uses: Swatinem/rust-cache@v2
