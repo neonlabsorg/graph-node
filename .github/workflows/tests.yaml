@@ -48,7 +48,7 @@ jobs:
       - name: Run integration tests
         uses: actions-rs/cargo@v1
         env:
-          N_CONCURRENT_TESTS: "2"
+          N_CONCURRENT_TESTS: "1"
           NEON_ACCOUNTS: ${{ github.event.inputs.accounts }}
           SUBGRAPH_NAME: ${{ github.run_id }}
           IPFS_URI: "https://ch-ipfs.neontest.xyz"
