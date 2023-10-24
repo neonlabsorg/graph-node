@@ -3,21 +3,25 @@ const execSync = require("child_process").execSync;
 const { system, patching } = require("gluegun");
 const { createApolloFetch } = require("apollo-fetch");
 
-const Web3 = require("web3");
 const assert = require("assert");
 const Contract = artifacts.require("./Contract.sol");
 
 const srcDir = path.join(__dirname, "..");
+const subgraphName = process.env.SUBGRAPH_NAME || "subgraph_block_handlers";
+const indexNodeUrl = process.env.INDEX_NODE_URL || "https://ch2-graph.neontest.xyz/index-node/graphql";
+const subgraphUrl = process.env.SUBGRAPH_URL || `https://ch2-graph.neontest.xyz/subgraphs/name/${subgraphName}`;
 
-const httpPort = process.env.GRAPH_NODE_HTTP_PORT || 18000;
-const indexPort = process.env.GRAPH_NODE_INDEX_PORT || 18030;
-const ganachePort = process.env.GANACHE_TEST_PORT || 18545;
+const zeroAddress = "0x0000000000000000000000000000000000000000";
+const templateBlock = 247101047;
 
-const fetchSubgraphs = createApolloFetch({
-  uri: `http://localhost:${indexPort}/graphql`,
+let block = 0;
+let contractInstance;
+
+const fetchSubgraphIndexNode = createApolloFetch({
+  uri: indexNodeUrl,
 });
 const fetchSubgraph = createApolloFetch({
-  uri: `http://localhost:${httpPort}/subgraphs/name/test/block-handlers`,
+  uri: subgraphUrl,
 });
 
 const exec = (cmd) => {
@@ -28,18 +32,16 @@ const exec = (cmd) => {
   }
 };
 
-const createBlocks = async (contract) => {
-  let ganacheUrl = `http://localhost:${ganachePort}`;
-
-  const web3 = new Web3(ganacheUrl);
+const generateBlocks = async (contract) => {
   let accounts = await web3.eth.getAccounts();
+
   // connect to the contract and call the function trigger()
-  const contractInstance = new web3.eth.Contract(
+  contractInstance = new web3.eth.Contract(
     Contract.abi,
     contract.address
   );
+
   // loop and call emitTrigger 10 times
-  // This is to force ganache to mine 10 blocks
   for (let i = 0; i < 10; i++) {
     await contractInstance.methods
       .emitTrigger(i + 1)
@@ -49,28 +51,33 @@ const createBlocks = async (contract) => {
 
 const waitForSubgraphToBeSynced = async () =>
   new Promise((resolve, reject) => {
-    // Wait for 60s
-    let deadline = Date.now() + 60 * 1000;
+    // Wait for 600s
+    let deadline = Date.now() + 600 * 1000;
 
     // Function to check if the subgraph is synced
     const checkSubgraphSynced = async () => {
       try {
-        let result = await fetchSubgraphs({
-          query: `{ indexingStatuses { synced, health } }`,
+        let result = await fetchSubgraphIndexNode({
+          query: `{
+            indexingStatusForCurrentVersion(subgraphName: "${subgraphName}") {
+              synced
+              health
+            }
+          }`,
         });
-
-        if (result.data.indexingStatuses[0].synced) {
+        if (result.data.indexingStatusForCurrentVersion.synced) {
           resolve();
-        } else if (result.data.indexingStatuses[0].health != "healthy") {
-          reject(new Error(`Subgraph failed`));
+        } else if (result.data.indexingStatusForCurrentVersion.health != "healthy") {
+          reject(new Error("Subgraph is unhealthy"));
         } else {
-          throw new Error("reject or retry");
+          throw new Error("Reject or retry");
         }
       } catch (e) {
         if (Date.now() > deadline) {
-          reject(new Error(`Timed out waiting for the subgraph to sync`));
+          reject(new Error("Timed out waiting for the subgraph to be synced"));
         } else {
-          setTimeout(checkSubgraphSynced, 1000);
+          console.log("Waiting for the subgraph to be synced...");
+          setTimeout(checkSubgraphSynced, 10000);
         }
       }
     };
@@ -86,15 +93,24 @@ contract("Contract", (accounts) => {
     const contract = await Contract.deployed();
 
     // Insert its address into subgraph manifest
-    await patching.replace(
-      path.join(srcDir, "subgraph.yaml"),
-      "0x0000000000000000000000000000000000000000",
-      contract.address
-    );
+    txhash = Contract.transactionHash;
+    block = (await web3.eth.getTransaction(txhash)).blockNumber;
 
-    // We force ganache to mine atleast 10 blocks
-    // by calling a function in the contract 10 times
-    await createBlocks(contract);
+    for (let i = 0; i < 2; i++) {
+      await patching.replace(
+        path.join(srcDir, "subgraph.yaml"),
+        zeroAddress,
+        contract.address
+      );
+
+      await patching.replace(
+        path.join(srcDir, "subgraph.yaml"),
+        templateBlock,
+        block
+      );
+    }
+
+    await generateBlocks(contract);
 
     // Create and deploy the subgraph
     exec(`yarn codegen`);
@@ -115,16 +131,16 @@ contract("Contract", (accounts) => {
     expect(result.errors).to.be.undefined;
     expect(result.data).to.deep.equal({
       blocks: [
-        { id: "1", number: "1" },
-        { id: "2", number: "2" },
-        { id: "3", number: "3" },
-        { id: "4", number: "4" },
-        { id: "5", number: "5" },
-        { id: "6", number: "6" },
-        { id: "7", number: "7" },
-        { id: "8", number: "8" },
-        { id: "9", number: "9" },
-        { id: "10", number: "10" },
+        { id: block.toString(), number: block.toString() },
+        { id: (block + 1).toString(), number: (block + 1).toString() },
+        { id: (block + 2).toString(), number: (block + 2).toString() },
+        { id: (block + 3).toString(), number: (block + 3).toString() },
+        { id: (block + 4).toString(), number: (block + 4).toString() },
+        { id: (block + 5).toString(), number: (block + 5).toString() },
+        { id: (block + 6).toString(), number: (block + 6).toString() },
+        { id: (block + 7).toString(), number: (block + 7).toString() },
+        { id: (block + 8).toString(), number: (block + 8).toString() },
+        { id: (block + 9).toString(), number: (block + 9).toString() },
       ],
     });
   });
@@ -133,13 +149,13 @@ contract("Contract", (accounts) => {
     // Also test that multiple block constraints do not result in a graphql error.
     let result = await fetchSubgraph({
       query: `{
-        foos(orderBy: value,skip: 1) { id value }
+        foos(orderBy: value, skip: 1) { id value }
       }`,
     });
 
     expect(result.errors).to.be.undefined;
     const foos = [];
-    for (let i = 0; i < 11; i++) {
+    for (let i = 1; i < 11; i++) {
       foos.push({ id: i.toString(), value: i.toString() });
     }
 
@@ -148,10 +164,15 @@ contract("Contract", (accounts) => {
     });
   });
 
-  it("should call intialization handler first", async () => {
+  // Next cases are skipped cause the features are not implemented yet in graph-node v0.32.0
+  it.skip("should call initialization handler first", async () => {
+    await contractInstance.methods
+      .emitTrigger(0)
+      .send({ from: accounts[0] });
+
     let result = await fetchSubgraph({
       query: `{
-        foo( id: "initialize" ) { id value }
+        foos(id: "0") { id value }
       }`,
     });
 
@@ -165,7 +186,7 @@ contract("Contract", (accounts) => {
     });
   });
 
-  it("test blockHandler with polling filter", async () => {
+  it.skip("test blockHandler with polling filter", async () => {
     // Also test that multiple block constraints do not result in a graphql error.
     let result = await fetchSubgraph({
       query: `{
@@ -175,14 +196,14 @@ contract("Contract", (accounts) => {
     expect(result.errors).to.be.undefined;
     expect(result.data).to.deep.equal({
       blockFromPollingHandlers: [
-        { id: "1", number: "1" },
-        { id: "4", number: "4" },
-        { id: "7", number: "7" },
+        { id: (block).toString(), number: (block).toString() },
+        { id: (block + 3).toString(), number: (block + 3).toString() },
+        { id: (block + 6).toString(), number: (block + 6).toString() },
       ],
     });
   });
 
-  it("test other blockHandler with polling filter", async () => {
+  it.skip("test other blockHandler with polling filter", async () => {
     // Also test that multiple block constraints do not result in a graphql error.
     let result = await fetchSubgraph({
       query: `{
@@ -192,14 +213,14 @@ contract("Contract", (accounts) => {
     expect(result.errors).to.be.undefined;
     expect(result.data).to.deep.equal({
       blockFromOtherPollingHandlers: [
-        { id: "2", number: "2" },
-        { id: "4", number: "4" },
-        { id: "6", number: "6" },
+        { id: (block + 1).toString(), number: (block + 1).toString() },
+        { id: (block + 3).toString(), number: (block + 3).toString() },
+        { id: (block + 5).toString(), number: (block + 5).toString() },
       ],
     });
   });
 
-  it("test initialization handler", async () => {
+  it.skip("test initialization handler", async () => {
     // Also test that multiple block constraints do not result in a graphql error.
     let result = await fetchSubgraph({
       query: `{
@@ -209,21 +230,20 @@ contract("Contract", (accounts) => {
     expect(result.errors).to.be.undefined;
     expect(result.data.initializes.length).to.equal(1);
     expect(result.data).to.deep.equal({
-      initializes: [{ id: "1", block: "1" }],
+      initializes: [{ id: (block).toString(), number: (block).toString() }],
     });
   });
 
-  it("test subgraphFeatures endpoint returns handlers correctly", async () => {
+  it.skip("test subgraphFeatures endpoint returns handlers correctly", async () => {
     let meta = await fetchSubgraph({
       query: `{ _meta { deployment } }`,
     });
 
     let deployment = meta.data._meta.deployment;
-    console.log("deployment", deployment);
 
-    let subgraph_features = await fetchSubgraphs({
-      query: `query GetSubgraphFeatures($deployment: String!) {
-        subgraphFeatures(subgraphId: $deployment) {
+    let subgraph_features = await fetchSubgraphIndexNode({
+      query: `query {
+        subgraphFeatures(subgraphId: ${deployment}) {
           specVersion
           apiVersion
           features

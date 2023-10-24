@@ -1,4 +1,4 @@
-specVersion: 0.0.2
+specVersion: 0.0.4
 repository: https://github.com/graphprotocol/example-subgraph
 schema:
   file: ./schema.graphql
@@ -7,10 +7,11 @@ features:
 dataSources:
   - kind: ethereum/contract
     name: Contract
-    network: test
+    network: neonlabs
     source:
-      address: "0xCfEB869F69431e42cdB54A4F4f105C19C080A601"
+      address: "0x0000000000000000000000000000000000000000"
       abi: Contract
+      startBlock: 247101047
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.4
@@ -26,7 +27,7 @@ dataSources:
 templates:
   - kind: ethereum/contract
     name: Template
-    network: test
+    network: neonlabs
     source:
       abi: Contract
     mapping:

@@ -1,0 +1,85 @@
+name: Run the graph tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      accounts:
+  repository_dispatch:
+    types: [integration-tests]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: full
+
+jobs:
+  integration-tests:
+    name: Run integration tests
+    runs-on: devnet-tracer
+    timeout-minutes: 90
+    env:
+      RUSTFLAGS: "-C link-arg=-fuse-ld=lld -D warnings"
+    steps:
+      - name: echo run ID
+        run: |
+          echo run ID: ${{ github.run_id }}
+      - name: Checkout sources
+        uses: actions/checkout@v2
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install yarn
+        run: |-
+          curl -fsSL --create-dirs -o $HOME/bin/yarn \
+          https://github.com/yarnpkg/yarn/releases/download/v1.22.19/yarn-1.22.19.js
+          chmod +x $HOME/bin/yarn
+          echo "$HOME/bin" >> $GITHUB_PATH
+
+      - name: Install Node 16
+        uses: actions/setup-node@v3
+        with:
+          node-version: "16"
+          cache: yarn
+          cache-dependency-path: "tests/integration-tests/yarn.lock"
+
+      - name: Install lld, jq and libpq-dev
+        run: sudo apt-get install -y lld jq libpq-dev protobuf-compiler
+
+      - name: Run integration tests
+        uses: actions-rs/cargo@v1
+        env:
+          N_CONCURRENT_TESTS: "1"
+          NEON_ACCOUNTS: ${{ github.event.client_payload.accounts }}
+          SUBGRAPH_NAME: ${{ github.run_id }}
+          IPFS_URI: "https://ch-ipfs.neontest.xyz"
+          GRAPH_NODE_ADMIN_URI: "https://ch2-graph.neontest.xyz/deploy/"
+        with:
+          command: test
+          args: --package graph-tests parallel_integration_tests -- --nocapture
+      
+      - name: Clear The Graph 
+        if: always()
+        env:
+          DEVNET_PROVIDER: ${{ secrets.DEVNET_PROVIDER }}
+          CONNECTION_STRING: ${{ secrets.CONNECTION_STRING }}
+        run: |
+          docker pull graphprotocol/graph-node:v0.32.0
+          echo "Replace connection string and devnet provider on config.toml"
+          sed -i -e "s|DEVNET_PROVIDER|${{env.DEVNET_PROVIDER}}|g" ./tests/integration-tests/config/config.toml
+          sed -i -e "s|CONNECTION_STRING|${{env.CONNECTION_STRING}}|g" ./tests/integration-tests/config/config.toml
+          cat ./tests/integration-tests/config/config.toml
+          echo "Run the Graph container"
+          docker run -t -d --rm -v ./tests/integration-tests/config/config.toml:/config.toml --name=graph-node-${{ github.run_id }} graphprotocol/graph-node:v0.32.0 sleep infinity
+          ./tests/integration-tests/config/rm_subgraphs.sh ${{ github.run_id }}
+          docker rm graph-node-${{ github.run_id }} -f | true         
+          
+      - name: "Notify on failure"
+        if: failure()
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_CHANNEL: team-dev-qa
+          SLACK_COLOR: '#ff0000'
+          SLACK_ICON: ':exclamation:'
+          SLACK_FOOTER: 'Neonlabs'
+          SLACK_MESSAGE: '<https://github.com/neonlabsorg/graph-node/actions/runs/${{ github.run_id }}|View build details>'
+          SLACK_TITLE: The Graph Integration Tests Failed
+          SLACK_USERNAME: NeonBot
+          SLACK_WEBHOOK: ${{ secrets.SLACK_QA_CHANNEL_URL }}

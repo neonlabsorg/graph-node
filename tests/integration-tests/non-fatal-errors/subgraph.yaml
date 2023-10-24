@@ -6,10 +6,11 @@ features:
 dataSources:
   - kind: ethereum/contract
     name: Success
-    network: test
+    network: neonlabs
     source:
-      address: "0xCfEB869F69431e42cdB54A4F4f105C19C080A601"
+      address: "0x0000000000000000000000000000000000000000"
       abi: Contract
+      startBlock: 247101047
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.6
@@ -24,10 +25,11 @@ dataSources:
       file: ./src/mapping.ts
   - kind: ethereum/contract
     name: Error
-    network: test
+    network: neonlabs
     source:
-      address: "0xCfEB869F69431e42cdB54A4F4f105C19C080A601"
+      address: "0x0000000000000000000000000000000000000000"
       abi: Contract
+      startBlock: 247101047
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.6
@@ -43,7 +45,7 @@ dataSources:
 templates:
   - kind: ethereum/contract
     name: Dynamic
-    network: test
+    network: neonlabs
     source:
       abi: Contract
     mapping:

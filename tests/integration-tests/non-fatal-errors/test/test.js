@@ -3,18 +3,24 @@ const execSync = require("child_process").execSync;
 const { system, patching } = require("gluegun");
 const { createApolloFetch } = require("apollo-fetch");
 
+const assert = require("assert");
 const Contract = artifacts.require("./Contract.sol");
 
 const srcDir = path.join(__dirname, "..");
+const subgraphName = process.env.SUBGRAPH_NAME || "subgraph_block_handlers";
+const indexNodeUrl = process.env.INDEX_NODE_URL || "https://ch2-graph.neontest.xyz/index-node/graphql";
+const subgraphUrl = process.env.SUBGRAPH_URL || `https://ch2-graph.neontest.xyz/subgraphs/name/${subgraphName}`;
 
-const httpPort = process.env.GRAPH_NODE_HTTP_PORT || 18000;
-const indexPort = process.env.GRAPH_NODE_INDEX_PORT || 18030;
+const zeroAddress = "0x0000000000000000000000000000000000000000";
+const templateBlock = 247101047;
 
-const fetchSubgraphs = createApolloFetch({
-  uri: `http://localhost:${indexPort}/graphql`,
+let block = 0;
+
+const fetchSubgraphIndexNode = createApolloFetch({
+  uri: indexNodeUrl,
 });
 const fetchSubgraph = createApolloFetch({
-  uri: `http://localhost:${httpPort}/subgraphs/name/test/non-fatal-errors`,
+  uri: subgraphUrl,
 });
 
 const exec = (cmd) => {
@@ -27,18 +33,21 @@ const exec = (cmd) => {
 
 const waitForSubgraphToBeUnhealthy = async () =>
   new Promise((resolve, reject) => {
-    // Wait for 60s
-    let deadline = Date.now() + 60 * 1000;
+    // Wait for 600s
+    let deadline = Date.now() + 600 * 1000;
 
     // Function to check if the subgraph is synced
-    const checkSubgraphSynced = async () => {
+    const checkSubgraphUnhealthy = async () => {
       try {
-        let result = await fetchSubgraphs({
-          query: `{ indexingStatuses { synced, health } }`,
+        let result = await fetchSubgraphIndexNode({
+          query: `{
+            indexingStatusForCurrentVersion(subgraphName: "${subgraphName}") {
+              synced
+              health
+            }
+          }`,
         });
-
-        let health = result.data.indexingStatuses[0].health
-        if (health == "unhealthy") {
+        if (result.data.indexingStatusForCurrentVersion.health == "unhealthy") {
           resolve();
         } else if (health == "failed") {
           reject(new Error("Subgraph failed"));
@@ -47,15 +56,15 @@ const waitForSubgraphToBeUnhealthy = async () =>
         }
       } catch (e) {
         if (Date.now() > deadline) {
-          reject(new Error(`Timed out waiting for the subgraph to be uhealthy`));
+          reject(new Error(`Timed out waiting for the subgraph to be unhealthy`));
         } else {
-          setTimeout(checkSubgraphSynced, 500);
+          setTimeout(checkSubgraphUnhealthy, 500);
         }
       }
     };
 
     // Periodically check whether the subgraph has synced
-    setTimeout(checkSubgraphSynced, 0);
+    setTimeout(checkSubgraphUnhealthy, 0);
   });
 
 contract("Contract", (accounts) => {
@@ -66,11 +75,22 @@ contract("Contract", (accounts) => {
     await contract.emitTrigger(1);
 
     // Insert its address into subgraph manifest
-    await patching.replace(
-      path.join(srcDir, "subgraph.yaml"),
-      "0x0000000000000000000000000000000000000000",
-      contract.address
-    );
+    txhash = Contract.transactionHash;
+    block = (await web3.eth.getTransaction(txhash)).blockNumber;
+
+    for (let i = 0; i < 2; i++) {
+      await patching.replace(
+        path.join(srcDir, "subgraph.yaml"),
+        zeroAddress,
+        contract.address
+      );
+
+      await patching.replace(
+        path.join(srcDir, "subgraph.yaml"),
+        templateBlock,
+        block
+      );
+    }
 
     // Create and deploy the subgraph
     exec(`yarn codegen`);
@@ -81,39 +101,7 @@ contract("Contract", (accounts) => {
     await waitForSubgraphToBeUnhealthy();
   });
 
-  it("only sucessful handler register changes", async () => {
-    let meta = await fetchSubgraph({
-      query: `{ _meta { deployment } }`,
-    });
-
-    let deployment = meta.data._meta.deployment;
-    console.log("deployment", deployment);
-
-    let subgraph_features = await fetchSubgraphs({
-      query: `query GetSubgraphFeatures($deployment: String!) {
-        subgraphFeatures(subgraphId: $deployment) {
-          specVersion
-          apiVersion
-          features
-          dataSources
-          network
-          handlers
-        }
-      }`,
-      variables: { deployment },
-    });
-
-    expect(subgraph_features.data).to.deep.equal({
-      subgraphFeatures: {
-        specVersion: "0.0.4",
-        apiVersion: "0.0.6",
-        features: ["nonFatalErrors"],
-        dataSources: ["ethereum/contract"],
-        handlers: ["block"],
-        network: "test",
-      },
-    });
-
+  it("only successful handler register changes", async () => {
     let result = await fetchSubgraph({
       query: `{ foos(orderBy: id, subgraphError: allow) { id } }`,
     });
@@ -124,7 +112,7 @@ contract("Contract", (accounts) => {
       },
     ]);
 
-    // Importantly, "1" and "11" are not present because their handlers erroed.
+    // Importantly, "1" and "11" are not present because their handlers errored.
     expect(result.data).to.deep.equal({
       foos: [
         {

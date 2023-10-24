@@ -99,28 +99,25 @@ contract("Contract", (accounts) => {
     await waitForSubgraphToBeSynced();
   });
 
-
-  it("all overloads of the contract function are called", async () => {
+  it('check contract reverts', async () => {
     let result = await fetchSubgraph({
-      query: `{ calls(orderBy: id) { id value } }`
-    });
+      query: `{ calls(orderBy: id) { id reverted returnValue } }`
+    })
 
-    expect(result.errors).to.be.undefined;
+    expect(result.errors).to.be.undefined
     expect(result.data).to.deep.equal({
       calls: [
         {
-          id: "bytes32 -> uint256",
-          value: "256"
+          id: '100',
+          reverted: true,
+          returnValue: null
         },
         {
-          id: "string -> string",
-          value: "string -> string"
-        },
-        {
-          id: "uint256 -> string",
-          value: "uint256 -> string"
+          id: '9',
+          reverted: false,
+          returnValue: '10'
         }
       ]
-    });
-  });
-});
+    })
+  })
+})

@@ -3,18 +3,24 @@ const execSync = require("child_process").execSync;
 const { system, patching } = require("gluegun");
 const { createApolloFetch } = require("apollo-fetch");
 
+const assert = require("assert");
 const Contract = artifacts.require("./Contract.sol");
 
 const srcDir = path.join(__dirname, "..");
+const subgraphName = process.env.SUBGRAPH_NAME || "subgraph_block_handlers";
+const indexNodeUrl = process.env.INDEX_NODE_URL || "https://ch2-graph.neontest.xyz/index-node/graphql";
+const subgraphUrl = process.env.SUBGRAPH_URL || `https://ch2-graph.neontest.xyz/subgraphs/name/${subgraphName}`;
 
-const httpPort = process.env.GRAPH_NODE_HTTP_PORT || 18000;
-const indexPort = process.env.GRAPH_NODE_INDEX_PORT || 18030;
+const zeroAddress = "0x0000000000000000000000000000000000000000";
+const templateBlock = 247101047;
 
-const fetchSubgraphs = createApolloFetch({
-  uri: `http://localhost:${indexPort}/graphql`,
+let block = 0;
+
+const fetchSubgraphIndexNode = createApolloFetch({
+  uri: indexNodeUrl,
 });
 const fetchSubgraph = createApolloFetch({
-  uri: `http://localhost:${httpPort}/subgraphs/name/test/int8`,
+  uri: subgraphUrl,
 });
 
 const exec = (cmd) => {
@@ -27,28 +33,33 @@ const exec = (cmd) => {
 
 const waitForSubgraphToBeSynced = async () =>
   new Promise((resolve, reject) => {
-    // Wait for 60s
-    let deadline = Date.now() + 60 * 1000;
+    // Wait for 600s
+    let deadline = Date.now() + 600 * 1000;
 
     // Function to check if the subgraph is synced
     const checkSubgraphSynced = async () => {
       try {
-        let result = await fetchSubgraphs({
-          query: `{ indexingStatuses { synced, health } }`,
+        let result = await fetchSubgraphIndexNode({
+          query: `{
+            indexingStatusForCurrentVersion(subgraphName: "${subgraphName}") {
+              synced
+              health
+            }
+          }`,
         });
-
-        if (result.data.indexingStatuses[0].synced) {
+        if (result.data.indexingStatusForCurrentVersion.synced) {
           resolve();
-        } else if (result.data.indexingStatuses[0].health != "healthy") {
-          reject(new Error("Subgraph failed"));
+        } else if (result.data.indexingStatusForCurrentVersion.health != "healthy") {
+          reject(new Error("Subgraph is unhealthy"));
         } else {
-          throw new Error("reject or retry");
+          throw new Error("Reject or retry");
         }
       } catch (e) {
         if (Date.now() > deadline) {
-          reject(new Error(`Timed out waiting for the subgraph to sync`));
+          reject(new Error("Timed out waiting for the subgraph to be synced"));
         } else {
-          setTimeout(checkSubgraphSynced, 500);
+          console.log("Waiting for the subgraph to be synced...");
+          setTimeout(checkSubgraphSynced, 10000);
         }
       }
     };
@@ -64,10 +75,19 @@ contract("Contract", (accounts) => {
     const contract = await Contract.deployed();
 
     // Insert its address into subgraph manifest
+    txhash = Contract.transactionHash;
+    block = (await web3.eth.getTransaction(txhash)).blockNumber;
+
     await patching.replace(
       path.join(srcDir, "subgraph.yaml"),
-      "0x0000000000000000000000000000000000000000",
+      zeroAddress,
       contract.address
+    );
+
+    await patching.replace(
+      path.join(srcDir, "subgraph.yaml"),
+      templateBlock,
+      block
     );
 
     // Create and deploy the subgraph
@@ -83,14 +103,18 @@ contract("Contract", (accounts) => {
     // Also test that multiple block constraints do not result in a graphql error.
     let result = await fetchSubgraph({
       query: `{
-        foos_0: foos(orderBy: id, block: { number: 0 }) { id }
+        foos_0: foos(orderBy: id, block: { number: ${block} }) { id }
         foos(orderBy: id) { id value }
       }`,
     });
 
     expect(result.errors).to.be.undefined;
     expect(result.data).to.deep.equal({
-      foos_0: [],
+      foos_0: [
+        {
+          id: "0"
+        },
+      ],
       foos: [
         {
           id: "0",
