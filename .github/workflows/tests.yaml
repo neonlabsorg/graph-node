@@ -3,7 +3,6 @@ name: Run the graph tests
 on:
   workflow_dispatch:
     inputs:
-      distinct_id:
       accounts:
   repository_dispatch:
     types: [integration-tests]
@@ -22,7 +21,6 @@ jobs:
     steps:
       - name: echo run ID
         run: |
-          echo distinct ID: ${{ github.event.inputs.distinct_id }}
           echo run ID: ${{ github.run_id }}
       - name: Checkout sources
         uses: actions/checkout@v2
@@ -49,7 +47,7 @@ jobs:
         uses: actions-rs/cargo@v1
         env:
           N_CONCURRENT_TESTS: "1"
-          NEON_ACCOUNTS: ${{ github.event.inputs.accounts }}
+          NEON_ACCOUNTS: ${{ github.event.client_payload.accounts }}
           SUBGRAPH_NAME: ${{ github.run_id }}
           IPFS_URI: "https://ch-ipfs.neontest.xyz"
           GRAPH_NODE_ADMIN_URI: "https://ch2-graph.neontest.xyz/deploy/"
