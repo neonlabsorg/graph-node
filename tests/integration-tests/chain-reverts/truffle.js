@@ -4,8 +4,8 @@ require("babel-polyfill");
 const Web3 = require("web3");
 const HDWalletProvider = require("@truffle/hdwallet-provider");
 
-Web3.providers.HttpProvider.prototype.sendAsync = Web3.providers.HttpProvider.prototype.send
-const neonDevnet = "https://devnet.neonevm.org"
+Web3.providers.HttpProvider.prototype.sendAsync = Web3.providers.HttpProvider.prototype.send;
+const neonDevnet = "https://ch2-graph.neontest.xyz/solana";
 const provider = new Web3.providers.HttpProvider(neonDevnet);
 const privateKeys = process.env.NEON_ACCOUNTS.split(",");
 
