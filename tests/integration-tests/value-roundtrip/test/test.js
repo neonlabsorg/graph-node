@@ -33,8 +33,8 @@ const exec = (cmd) => {
 
 const waitForSubgraphToBeSynced = async () =>
   new Promise((resolve, reject) => {
-    // Wait for 1200s
-    let deadline = Date.now() + 1200 * 1000;
+    // Wait for 600s
+    let deadline = Date.now() + 600 * 1000;
 
     // Function to check if the subgraph is synced
     const checkSubgraphSynced = async () => {
@@ -89,14 +89,6 @@ contract("Contract", (accounts) => {
       templateBlock,
       block
     );
-
-    console.log("Subgraph.yaml file entry: ")
-    var fs = require('fs');
-    let filename = path.join(srcDir, "subgraph.yaml");
-    fs.readFile(filename, 'utf8', function (err, data) {
-      if (err) throw err;
-      console.log(JSON.stringify(data))
-    });
 
     // Create and deploy the subgraph
     exec(`yarn codegen`);
