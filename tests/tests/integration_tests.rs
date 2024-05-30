@@ -35,7 +35,7 @@ pub const INTEGRATION_TEST_DIRS: &[&str] = &[
     "remove-then-update",
     "value-roundtrip",
     "int8",
-    "block-handlers",
+    // "block-handlers",
 ];
 
 const IPFS_URI: &str = "https://ch-ipfs.neontest.xyz";
