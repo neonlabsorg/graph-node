@@ -15,7 +15,7 @@ jobs:
   integration-tests:
     name: Run integration tests
     runs-on: devnet-tracer
-    timeout-minutes: 90
+    timeout-minutes: 120
     env:
       RUSTFLAGS: "-C link-arg=-fuse-ld=lld -D warnings"
     steps:
