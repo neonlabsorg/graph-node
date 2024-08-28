@@ -49,6 +49,9 @@ jobs:
           N_CONCURRENT_TESTS: "1"
           NEON_ACCOUNTS: ${{ github.event.client_payload.accounts }}
           SUBGRAPH_NAME: ${{ github.run_id }}
+          API_KEY: "${{ secrets.API_KEY }}"
+          SECURED_GRAPH_NODE_ADMIN_URI: "https://graph-secured.neontest.xyz/deploy"
+          SECURED_IPFS_URI: "https://ipfs-secured.neontest.xyz "
           IPFS_URI: "https://ch-ipfs.neontest.xyz"
           GRAPH_NODE_ADMIN_URI: "https://ch2-graph.neontest.xyz/deploy/"
         with:
