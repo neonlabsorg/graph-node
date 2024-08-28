@@ -29,6 +29,7 @@ pub const INTEGRATION_TEST_DIRS: &[&str] = &[
     "api-version-v0-0-4",
     "chain-reverts",
     "host-exports",
+    "neon-auth",
     "non-fatal-errors",
     "overloaded-contract-functions",
     "poi-for-failed-subgraph",

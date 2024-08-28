@@ -4,6 +4,10 @@ on:
   workflow_dispatch:
     inputs:
       accounts:
+        type: string
+        default: "0x5743d2f08145f4fb7565323da8830f16c1990a26a601ead1013d72b867140f12"
+        required: true
+        description: "Accounts list"
   repository_dispatch:
     types: [integration-tests]
 
@@ -42,12 +46,22 @@ jobs:
 
       - name: Install lld, jq and libpq-dev
         run: sudo apt-get install -y lld jq libpq-dev protobuf-compiler
+      
+      - name: Set accounts list for tests
+        run: |
+          echo "NEON_ACCOUNTS=$(
+            if [ ${{ github.event_name }} == 'workflow_dispatch' ]; then
+              echo ${{ inputs.accounts }}
+            else
+              echo ${{ github.event.client_payload.accounts }}
+            fi
+          )" >> $GITHUB_ENV
 
       - name: Run integration tests
         uses: actions-rs/cargo@v1
         env:
           N_CONCURRENT_TESTS: "1"
-          NEON_ACCOUNTS: ${{ github.event.client_payload.accounts }}
+          NEON_ACCOUNTS: ${{env.NEON_ACCOUNTS}}
           SUBGRAPH_NAME: ${{ github.run_id }}
           API_KEY: "${{ secrets.API_KEY }}"
           SECURED_GRAPH_NODE_ADMIN_URI: "https://graph-secured.neontest.xyz/deploy"
