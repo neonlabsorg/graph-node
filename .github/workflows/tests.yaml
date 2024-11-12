@@ -18,7 +18,7 @@ env:
 jobs:
   integration-tests:
     name: Run integration tests
-    runs-on: ["self-hosted", "k8s-prod"]
+    runs-on: devnet-tracer
     timeout-minutes: 120
     env:
       RUSTFLAGS: "-C link-arg=-fuse-ld=lld -D warnings"
@@ -28,9 +28,6 @@ jobs:
           echo run ID: ${{ github.run_id }}
       - name: Checkout sources
         uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
       - uses: Swatinem/rust-cache@v2
 
       - name: Install yarn
@@ -48,9 +45,7 @@ jobs:
           cache-dependency-path: "tests/integration-tests/yarn.lock"
 
       - name: Install lld, jq and libpq-dev
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y lld jq libpq-dev protobuf-compiler pkgconf libssl-dev
+        run: sudo apt-get install -y lld jq libpq-dev protobuf-compiler
       
       - name: Set accounts list for tests
         run: |
