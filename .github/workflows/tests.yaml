@@ -53,7 +53,7 @@ jobs:
       - name: Install lld, jq and libpq-dev
         run: |
           sudo apt-get update
-          sudo apt-get install -y lld jq libpq-dev protobuf-compiler pkgconf libssl-dev
+          sudo apt-get install -y lld jq libpq-dev protobuf-compiler=3.12.4-1ubuntu7.22.04.1 pkgconf libssl-dev
       
       - name: Check protoc version
         run: protoc --version
