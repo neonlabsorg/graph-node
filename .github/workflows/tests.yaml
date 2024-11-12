@@ -53,7 +53,7 @@ jobs:
       - name: Install lld, jq and libpq-dev
         run: |
           sudo apt-get update
-          sudo apt-get install -y lld jq libpq-dev protobuf-compiler
+          sudo apt-get install -y lld jq libpq-dev protobuf-compiler pkgconf libssl-dev
       
       - name: Set accounts list for tests
         run: |
