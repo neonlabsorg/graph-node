@@ -19,7 +19,9 @@ jobs:
   integration-tests:
     name: Run integration tests
     runs-on: ["self-hosted", "k8s-prod"]
-    container: "summerwind/actions-runner:ubuntu-22.04"
+    container:
+      image: summerwind/actions-runner:ubuntu-22.04
+      options: --user root
     timeout-minutes: 120
     env:
       RUSTFLAGS: "-C link-arg=-fuse-ld=lld -D warnings"
