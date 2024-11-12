@@ -18,7 +18,7 @@ env:
 jobs:
   integration-tests:
     name: Run integration tests
-    runs-on: ["self-hosted", "k8s-prod-ubuntu-22"]
+    runs-on: ["self-hosted", "k8s-prod"]
     container:
       image: summerwind/actions-runner:ubuntu-22.04
       options: --user root
@@ -34,7 +34,7 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-      - uses: Swatinem/rust-cache@v2
+      #- uses: Swatinem/rust-cache@v2
 
       - name: Install yarn
         run: |-
