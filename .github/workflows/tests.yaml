@@ -50,7 +50,10 @@ jobs:
       - name: Install lld, jq and libpq-dev
         run: |
           sudo apt-get update
-          sudo apt-get install -y lld jq libpq-dev protobuf-compiler pkgconf libssl-dev
+          sudo apt-get install -y lld jq libpq-dev pkgconf libssl-dev
+          PROTOC_ZIP=protoc-3.14.0-linux-x86_64.zip
+          sudo curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v3.14.0/$PROTOC_ZIP
+          sudo unzip -o $PROTOC_ZIP -d /usr/local bin/protoc
       
       - name: Set accounts list for tests
         run: |
