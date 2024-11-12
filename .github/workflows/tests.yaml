@@ -27,7 +27,9 @@ jobs:
         run: |
           echo run ID: ${{ github.run_id }}
       - name: Debug
-        run: cat /etc/apt/sources.list
+        run: |
+          cat /etc/os-release
+          cat /etc/apt/sources.list
       - name: Checkout sources
         uses: actions/checkout@v2
       - name: Install latest nightly
