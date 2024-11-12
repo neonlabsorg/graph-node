@@ -55,6 +55,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y lld jq libpq-dev protobuf-compiler pkgconf libssl-dev
       
+      - name: Check protoc version
+        run: protoc --version
+
       - name: Set accounts list for tests
         run: |
           echo "NEON_ACCOUNTS=$(
