@@ -18,7 +18,7 @@ env:
 jobs:
   integration-tests:
     name: Run integration tests
-    runs-on: ["self-hosted", "k8s-prod-ubuntu-22"]
+    runs-on: ["gha-runner-scale-set"]
     timeout-minutes: 120
     env:
       RUSTFLAGS: "-C link-arg=-fuse-ld=lld -D warnings"
